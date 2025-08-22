@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     # Ermöglicht manuellen Start
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
   sync:
