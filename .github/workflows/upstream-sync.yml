@@ -1,0 +1,91 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    # Läuft täglich um 2:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Ermöglicht manuellen Start
+  push:
+    branches: [ main ]
+
+jobs:
+  sync:
+    name: Sync with upstream
+    runs-on: ubuntu-latest
+    if: github.event.repository.fork == true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/evcc-io/evcc.git || true
+          git remote -v
+
+      - name: Fetch upstream changes
+        run: |
+          git fetch upstream
+          git fetch origin
+
+      - name: Check if sync needed
+        id: check
+        run: |
+          # Prüfe ob upstream/main neuer ist als origin/main
+          UPSTREAM_COMMIT=$(git rev-parse upstream/main)
+          ORIGIN_COMMIT=$(git rev-parse origin/main)
+          
+          if [ "$UPSTREAM_COMMIT" != "$ORIGIN_COMMIT" ]; then
+            echo "sync_needed=true" >> $GITHUB_OUTPUT
+            echo "Sync needed - upstream has new commits"
+          else
+            echo "sync_needed=false" >> $GITHUB_OUTPUT
+            echo "No sync needed - already up to date"
+          fi
+
+      - name: Sync main branch
+        if: steps.check.outputs.sync_needed == 'true'
+        run: |
+          # Wechsel zu main branch
+          git checkout main
+          
+          # Merge upstream changes
+          git merge upstream/main --no-edit
+          
+          # Push zu origin
+          git push origin main
+
+      - name: Update feature branch (if exists)
+        if: steps.check.outputs.sync_needed == 'true'
+        run: |
+          # Prüfe ob feature/braiins-integration branch existiert
+          if git ls-remote --heads origin feature/braiins-integration | grep -q feature/braiins-integration; then
+            echo "Updating feature/braiins-integration branch"
+            
+            # Wechsel zu feature branch
+            git checkout feature/braiins-integration
+            
+            # Rebase auf den neuen main
+            git rebase main
+            
+            # Force push (da rebase die History ändert)
+            git push origin feature/braiins-integration --force-with-lease
+          else
+            echo "Feature branch feature/braiins-integration not found, skipping"
+          fi
+
+      - name: Create Pull Request for conflicts (optional)
+        if: failure()
+        run: |
+          echo "Sync failed - likely due to merge conflicts"
+          echo "Manual intervention required"
+          # Hier könnte man ein Issue erstellen oder eine Benachrichtigung senden
