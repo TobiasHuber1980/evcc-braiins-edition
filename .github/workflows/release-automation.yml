@@ -152,19 +152,71 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Build binaries
+      - name: Set up Node.js
+        if: steps.release_check.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
         if: steps.release_check.outputs.exists == 'false'
         run: |
-          go mod download
+          echo "Installing dependencies..."
+          make install-ui
+          make install
+
+      - name: Quality checks
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
+          echo "Running quality checks..."
+          make lint-ui
+          make lint
+          
+      - name: Build Web UI
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
+          echo "Building Web UI..."
+          make ui
+
+      - name: Build evcc binaries
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
           echo "Building binaries for ${BRAIINS_TAG}..."
-          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-amd64" .
-          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-arm64" .
-          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-windows-amd64.exe" .
-          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-amd64" .
-          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-arm64" .
+          
+          # Linux AMD64
+          echo "Building Linux AMD64..."
+          GOOS=linux GOARCH=amd64 make build
+          mv evcc "evcc-${BRAIINS_TAG}-linux-amd64"
+          
+          # Linux ARM64  
+          echo "Building Linux ARM64..."
+          GOOS=linux GOARCH=arm64 make build
+          mv evcc "evcc-${BRAIINS_TAG}-linux-arm64"
+          
+          # Windows
+          echo "Building Windows AMD64..."
+          GOOS=windows GOARCH=amd64 make build
+          mv evcc.exe "evcc-${BRAIINS_TAG}-windows-amd64.exe" || mv evcc "evcc-${BRAIINS_TAG}-windows-amd64.exe"
+          
+          # macOS Intel
+          echo "Building macOS Intel..."
+          GOOS=darwin GOARCH=amd64 make build
+          mv evcc "evcc-${BRAIINS_TAG}-darwin-amd64"
+          
+          # macOS Apple Silicon
+          echo "Building macOS Apple Silicon..." 
+          GOOS=darwin GOARCH=arm64 make build
+          mv evcc "evcc-${BRAIINS_TAG}-darwin-arm64"
+          
           echo "All binaries built successfully"
           ls -la evcc-${BRAIINS_TAG}-*
+
+      - name: Final quality check
+        if: steps.release_check.outputs.exists == 'false'
+        run: |
+          echo "Running final porcelain check..."
+          make porcelain
 
       - name: Create GitHub Release
         if: steps.release_check.outputs.exists == 'false'
