@@ -1,48 +1,42 @@
-version: "2"
 run:
-  go: "1.25"
+  timeout: 5m
+linters-settings:
+  govet:
+    check-shadowing: true
+  gofmt:
+    simplify: true
+  nolintlint:
+    allow-leading-space: true
+    allow-unused: false
+    require-specific: false
 linters:
-  default: none
+  disable-all: true
   enable:
-    - durationcheck
-    - goprintffuncname
-    - govet
-    - importas
-    - ineffassign
-    - makezero
-    - misspell
-    - nolintlint
-    - rowserrcheck
-    - sqlclosecheck
-    - staticcheck
-    - tparallel
-    - unconvert
-    - unused
-    - wastedassign
-    - whitespace
-  settings:
-    staticcheck:
-      checks:
-        - -SA1019
-  exclusions:
-    generated: lax
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
-formatters:
-  enable:
+    - asciicheck
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - errcheck
+    - funlen
     - gci
+    - goconst
+    - gocritic
     - gofmt
     - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+    - golint
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - interfacer
+    - misspell
+    - nakedret
+    - revive
+    - rowserrcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
