@@ -2,10 +2,8 @@ name: Create Braiins Edition Release
 
 on:
   schedule:
-    # Täglich prüfen ob neue evcc-Releases da sind
     - cron: '0 6 * * *'
   workflow_dispatch:
-    # Manuell auslösbar
     inputs:
       evcc_version:
         description: 'evcc version to base release on (e.g. 0.207.4)'
@@ -36,320 +34,86 @@ jobs:
         run: |
           git remote add upstream https://github.com/evcc-io/evcc.git || true
           git fetch upstream --tags
-          
-          # Debug - zeige verfügbare Tags
-          echo "🔍 Available upstream tags:"
+          echo "Available upstream tags:"
           git tag -l | grep "207" || echo "No 207 tags found"
-          git ls-remote --tags upstream | grep "207" || echo "No 207 tags in remote"
 
       - name: Get latest evcc release
         id: evcc_version
         run: |
           if [ "${{ github.event.inputs.evcc_version }}" != "" ]; then
-            # Manuell angegeben - "v" entfernen falls vorhanden
-<<<<<<< HEAD
             EVCC_TAG="${{ github.event.inputs.evcc_version }}"
-            EVCC_TAG=${EVCC_TAG#v}  # Remove leading "v"
+            EVCC_TAG=${EVCC_TAG#v}
           else
-            # Automatisch ermitteln - evcc Tags haben kein "v"
             EVCC_TAG=$(git ls-remote --tags upstream | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*$' | sort -V | tail -1 | sed 's/refs\/tags\///')
-            
-            # Fallback wenn leer
             if [ -z "$EVCC_TAG" ]; then
-              echo "❌ Could not find evcc release, trying alternative method..."
+              echo "Could not find evcc release, trying alternative method..."
               EVCC_TAG=$(curl -s https://api.github.com/repos/evcc-io/evcc/releases/latest | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
-              EVCC_TAG=${EVCC_TAG#v}  # Remove leading "v"
+              EVCC_TAG=${EVCC_TAG#v}
             fi
-            
-            # Final check
             if [ -z "$EVCC_TAG" ]; then
-=======
-            LATEST_EVCC_TAG="${{ github.event.inputs.evcc_version }}"
-            LATEST_EVCC_TAG=${LATEST_EVCC_TAG#v}  # Remove leading "v"
-          else
-            # Automatisch ermitteln - evcc Tags haben kein "v"
-            LATEST_EVCC_TAG=$(git ls-remote --tags upstream | grep -o 'refs/tags/[0-9]*\.[0-9]*\.[0-9]*
-
-      - name: Check if Braiins release already exists
-        id: check_release
-        run: |
-          EVCC_TAG="${{ steps.evcc_release.outputs.latest_tag }}"
-          BRAIINS_TAG="v${EVCC_TAG}-braiins"  # Add "v" for our Braiins tags
-          
-          # Prüfen ob unser Release bereits existiert
-          if git tag -l | grep -q "^${BRAIINS_TAG}$"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Braiins release $BRAIINS_TAG already exists"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Need to create Braiins release $BRAIINS_TAG"
-          fi
-          
-          echo "braiins_tag=$BRAIINS_TAG" >> $GITHUB_OUTPUT
-
-      - name: Create Braiins Edition Release
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          EVCC_TAG="${{ steps.evcc_release.outputs.latest_tag }}"
-          BRAIINS_TAG="${{ steps.check_release.outputs.braiins_tag }}"
-          
-          # Debug - Tag verfügbarkeit prüfen
-          echo "🔍 Looking for tag: $EVCC_TAG"
-          git tag -l | grep "$EVCC_TAG" && echo "✅ Tag found locally" || echo "❌ Tag not found locally"
-          
-          # Neuen Branch für das Release erstellen
-          git checkout -b "release/${BRAIINS_TAG}"
-          
-          # Tag explizit fetchen und checkouten
-          git fetch upstream "refs/tags/${EVCC_TAG}:refs/tags/${EVCC_TAG}" || echo "Could not fetch tag"
-          
-          # Zu evcc-Tag wechseln ABER .github ausschließen
-          git checkout "refs/tags/${EVCC_TAG}" -- . ':!.github' || {
-            echo "❌ Could not checkout tag ${EVCC_TAG}, trying alternative method..."
-            # Alternative: Direkt von GitHub holen
-            curl -L "https://github.com/evcc-io/evcc/archive/refs/tags/${EVCC_TAG}.tar.gz" -o evcc-src.tar.gz
-            tar -xzf evcc-src.tar.gz --strip-components=1
-            rm evcc-src.tar.gz
-            # .github wieder herstellen
-            git checkout master -- .github/
-          }
-          
-          # Braiins-Dateien hinzufügen (falls sie nicht schon da sind)
-          git checkout master -- charger/braiins.go || echo "braiins.go not found in master"
-          git checkout master -- templates/definition/charger/braiins.yaml || echo "braiins.yaml not found in master"
-          
-          # README für Braiins Edition anpassen
-          cat > README-BRAIINS.md << EOF
-          # evcc - Braiins Edition
-          
-          Enhanced version of evcc with Braiins mining pool integration.
-          
-          **Base Version:** ${EVCC_TAG}
-          **Braiins Edition:** ${BRAIINS_TAG}
-          
-          ## Changes from Original evcc:
-          - ➕ Braiins mining pool charger support
-          - ➕ Automatic upstream synchronization
-          
-          ## Original Project:
-          https://github.com/evcc-io/evcc
-          
-          ## Installation:
-          Download the appropriate binary for your platform from the [Releases](https://github.com/TobiasHuber1980/evcc-braiins-edition/releases) page.
-          EOF
-          
-          # Änderungen committen
-          git add .
-          git commit -m "Release ${BRAIINS_TAG}: evcc ${EVCC_TAG} + Braiins integration" || echo "No changes to commit"
-          
-          # Tag erstellen
-          git tag -a "${BRAIINS_TAG}" -m "evcc-Braiins-Edition ${BRAIINS_TAG}
-
-          Based on evcc ${EVCC_TAG} with added features:
-          - Braiins mining pool charger integration
-          - Enhanced for mining operations
-          
-          Original evcc: https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG}"
-          
-          # Push tag
-          git push origin "${BRAIINS_TAG}"
-
-      - name: Set up Go
-        if: steps.check_release.outputs.exists == 'false'
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
-
-      - name: Build binaries
-        if: steps.check_release.outputs.exists == 'false'
-        run: |
-          # Install dependencies
-          go mod download
-          
-          # Build for multiple platforms
-          BRAIINS_TAG="${{ steps.check_release.outputs.braiins_tag }}"
-          
-          # Linux AMD64
-          GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-amd64" .
-          
-          # Linux ARM64
-          GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-arm64" .
-          
-          # Windows
-          GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-windows-amd64.exe" .
-          
-          # macOS
-          GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-amd64" .
-          GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-arm64" .
-
-      - name: Create GitHub Release
-        if: steps.check_release.outputs.exists == 'false'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          EVCC_TAG="${{ steps.evcc_release.outputs.latest_tag }}"
-          BRAIINS_TAG="${{ steps.check_release.outputs.braiins_tag }}"
-          
-          # Release Notes erstellen
-          cat > release_notes.md << EOF
-          # evcc - Braiins Edition ${BRAIINS_TAG}
-          
-          Enhanced version of [evcc ${EVCC_TAG}](https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG}) with Braiins mining pool integration.
-          
-          ## 🆕 Braiins Edition Features
-          - **Braiins Charger Integration**: Native support for Braiins mining pool charging
-          - **Enhanced Mining Operations**: Optimized for cryptocurrency mining setups
-          - **Automatic Upstream Sync**: Stays up-to-date with official evcc releases
-          
-          ## 📦 Downloads
-          Choose the appropriate binary for your platform:
-          - **Linux AMD64**: \`evcc-${BRAIINS_TAG}-linux-amd64\`
-          - **Linux ARM64**: \`evcc-${BRAIINS_TAG}-linux-arm64\`
-          - **Windows**: \`evcc-${BRAIINS_TAG}-windows-amd64.exe\`
-          - **macOS Intel**: \`evcc-${BRAIINS_TAG}-darwin-amd64\`
-          - **macOS Apple Silicon**: \`evcc-${BRAIINS_TAG}-darwin-arm64\`
-          
-          ## 📋 Base Version Changes
-          For complete changelog of the base evcc version, see: [evcc ${EVCC_TAG} Release Notes](https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG})
-          
-          ## 🔗 Links
-          - **Original evcc**: https://github.com/evcc-io/evcc
-          - **Documentation**: https://docs.evcc.io
-          - **Braiins Pool**: https://braiins.com/pool
-          EOF
-          
-          # GitHub Release erstellen
-          gh release create "${BRAIINS_TAG}" \
-            --title "evcc-Braiins-Edition ${BRAIINS_TAG}" \
-            --notes-file release_notes.md \
-            --draft=false \
-            --prerelease=false \
-            evcc-${BRAIINS_TAG}-*
-
-      - name: Cleanup
-        if: always()
-        run: |
-          # Release branch löschen (lokal)
-          git checkout master || git checkout main
-          git branch -D "release/${{ steps.check_release.outputs.braiins_tag }}" 2>/dev/null || true | sort -V | tail -1 | sed 's/refs\/tags\///')
-            
-            # Fallback wenn leer
-            if [ -z "$LATEST_EVCC_TAG" ]; then
-              echo "❌ Could not find evcc release, trying alternative method..."
-              LATEST_EVCC_TAG=$(curl -s https://api.github.com/repos/evcc-io/evcc/releases/latest | grep -o '"tag_name": "[^"]*' | cut -d'"' -f4)
-              LATEST_EVCC_TAG=${LATEST_EVCC_TAG#v}  # Remove leading "v"
-            fi
-            
-            # Final check
-            if [ -z "$LATEST_EVCC_TAG" ]; then
->>>>>>> 39b9ce50d751ac78722906f5d248cb54e5b53d8c
-              echo "❌ Could not determine evcc version, skipping release creation"
+              echo "Could not determine evcc version, skipping release creation"
               exit 1
             fi
           fi
-          
-<<<<<<< HEAD
           echo "evcc_tag=$EVCC_TAG" >> $GITHUB_OUTPUT
-          echo "✅ evcc version: $EVCC_TAG"
-=======
-          echo "latest_tag=$LATEST_EVCC_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Latest evcc release: $LATEST_EVCC_TAG"
->>>>>>> 39b9ce50d751ac78722906f5d248cb54e5b53d8c
+          echo "evcc version: $EVCC_TAG"
 
       - name: Set Braiins tag
         id: braiins_version
         run: |
           EVCC_TAG="${{ steps.evcc_version.outputs.evcc_tag }}"
-          BRAIINS_TAG="v${EVCC_TAG}-braiins"  # Add "v" for our Braiins tags
-          
+          BRAIINS_TAG="v${EVCC_TAG}-braiins"
           echo "braiins_tag=$BRAIINS_TAG" >> $GITHUB_OUTPUT
-          echo "✅ Braiins tag: $BRAIINS_TAG"
+          echo "Braiins tag: $BRAIINS_TAG"
 
       - name: Check if release exists
         id: release_check
         run: |
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          # Prüfen ob unser Release bereits existiert
           if git tag -l | grep -q "^${BRAIINS_TAG}$"; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "❌ Braiins release $BRAIINS_TAG already exists"
+            echo "Braiins release $BRAIINS_TAG already exists"
             exit 0
           else
             echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ Need to create Braiins release $BRAIINS_TAG"
+            echo "Need to create Braiins release $BRAIINS_TAG"
           fi
 
       - name: Create release branch
         if: steps.release_check.outputs.exists == 'false'
         run: |
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          # Debug - Tag verfügbarkeit prüfen
-          echo "🔍 Looking for tag: $EVCC_TAG"
-          git tag -l | grep "$EVCC_TAG" && echo "✅ Tag found locally" || echo "❌ Tag not found locally"
-          
-          # Neuen Branch für das Release erstellen
           git checkout -b "release/${BRAIINS_TAG}"
-          echo "✅ Created release branch: release/${BRAIINS_TAG}"
+          echo "Created release branch: release/${BRAIINS_TAG}"
 
       - name: Get evcc source code
         if: steps.release_check.outputs.exists == 'false'
         run: |
           EVCC_TAG="${{ steps.evcc_version.outputs.evcc_tag }}"
-          
-<<<<<<< HEAD
-          # Debug - Tag verfügbarkeit prüfen
-          echo "🔍 Looking for tag: $EVCC_TAG"
-          git tag -l | grep "$EVCC_TAG" && echo "✅ Tag found locally" || echo "❌ Tag not found locally"
-=======
-          # Tag explizit fetchen und checkouten
+          echo "Looking for tag: $EVCC_TAG"
+          git tag -l | grep "$EVCC_TAG" && echo "Tag found locally" || echo "Tag not found locally"
           git fetch upstream "refs/tags/${EVCC_TAG}:refs/tags/${EVCC_TAG}" || echo "Could not fetch tag"
-          
-          # Zu evcc-Tag wechseln ABER .github ausschließen
           git checkout "refs/tags/${EVCC_TAG}" -- . ':!.github' || {
-            echo "❌ Could not checkout tag ${EVCC_TAG}, trying alternative method..."
-            # Alternative: Direkt von GitHub holen
-            curl -L "https://github.com/evcc-io/evcc/archive/refs/tags/${EVCC_TAG}.tar.gz" -o evcc-src.tar.gz
-            tar -xzf evcc-src.tar.gz --strip-components=1
-            rm evcc-src.tar.gz
-            # .github wieder herstellen
-            git checkout master -- .github/
-          }
->>>>>>> 39b9ce50d751ac78722906f5d248cb54e5b53d8c
-          
-          # Tag explizit fetchen und checkouten
-          git fetch upstream "refs/tags/${EVCC_TAG}:refs/tags/${EVCC_TAG}" || echo "Could not fetch tag"
-          
-          # Zu evcc-Tag wechseln ABER .github ausschließen
-          git checkout "refs/tags/${EVCC_TAG}" -- . ':!.github' || {
-            echo "❌ Could not checkout tag ${EVCC_TAG}, trying alternative method..."
-            # Alternative: Direkt von GitHub holen
+            echo "Could not checkout tag ${EVCC_TAG}, trying alternative method..."
             curl -L "https://github.com/evcc-io/evcc/archive/refs/tags/${EVCC_TAG}.tar.gz" -o evcc-src.tar.gz
             tar -xzf evcc-src.tar.gz --strip-components=1
             rm evcc-src.tar.gz
           }
-          
-          # .github wieder herstellen
           git checkout master -- .github/ || echo "Could not restore .github"
 
       - name: Add Braiins integration
         if: steps.release_check.outputs.exists == 'false'
         run: |
-          # Braiins-Dateien hinzufügen (falls sie nicht schon da sind)
           git checkout master -- charger/braiins.go || echo "braiins.go not found in master"
           git checkout master -- templates/definition/charger/braiins.yaml || echo "braiins.yaml not found in master"
-          
-          echo "✅ Added Braiins integration files"
+          echo "Added Braiins integration files"
 
       - name: Create release documentation
         if: steps.release_check.outputs.exists == 'false'
         run: |
           EVCC_TAG="${{ steps.evcc_version.outputs.evcc_tag }}"
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          # README für Braiins Edition anpassen
-          cat > README-BRAIINS.md << EOF
+          cat > README-BRAIINS.md << 'RELEASE_README'
           # evcc - Braiins Edition
           
           Enhanced version of evcc with Braiins mining pool integration.
@@ -358,41 +122,29 @@ jobs:
           **Braiins Edition:** ${BRAIINS_TAG}
           
           ## Changes from Original evcc:
-          - ➕ Braiins mining pool charger support
-          - ➕ Automatic upstream synchronization
+          - Braiins mining pool charger support
+          - Automatic upstream synchronization
           
           ## Original Project:
           https://github.com/evcc-io/evcc
           
           ## Installation:
-          Download the appropriate binary for your platform from the [Releases](https://github.com/TobiasHuber1980/evcc-braiins-edition/releases) page.
-          EOF
-          
-          echo "✅ Created release documentation"
+          Download the appropriate binary for your platform from the Releases page.
+          RELEASE_README
+          sed -i "s/\${EVCC_TAG}/$EVCC_TAG/g" README-BRAIINS.md
+          sed -i "s/\${BRAIINS_TAG}/$BRAIINS_TAG/g" README-BRAIINS.md
+          echo "Created release documentation"
 
       - name: Commit and tag
         if: steps.release_check.outputs.exists == 'false'
         run: |
           EVCC_TAG="${{ steps.evcc_version.outputs.evcc_tag }}"
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          # Änderungen committen
           git add .
           git commit -m "Release ${BRAIINS_TAG}: evcc ${EVCC_TAG} + Braiins integration" || echo "No changes to commit"
-          
-          # Tag erstellen
-          git tag -a "${BRAIINS_TAG}" -m "evcc-Braiins-Edition ${BRAIINS_TAG}
-
-          Based on evcc ${EVCC_TAG} with added features:
-          - Braiins mining pool charger integration
-          - Enhanced for mining operations
-          
-          Original evcc: https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG}"
-          
-          # Push tag
+          git tag -a "${BRAIINS_TAG}" -m "evcc-Braiins-Edition ${BRAIINS_TAG} based on evcc ${EVCC_TAG}"
           git push origin "${BRAIINS_TAG}"
-          
-          echo "✅ Created and pushed tag: ${BRAIINS_TAG}"
+          echo "Created and pushed tag: ${BRAIINS_TAG}"
 
       - name: Set up Go
         if: steps.release_check.outputs.exists == 'false'
@@ -403,34 +155,15 @@ jobs:
       - name: Build binaries
         if: steps.release_check.outputs.exists == 'false'
         run: |
-          # Install dependencies
           go mod download
-          
-          # Build for multiple platforms
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          echo "🔨 Building binaries for ${BRAIINS_TAG}..."
-          
-          # Linux AMD64
-          echo "Building Linux AMD64..."
+          echo "Building binaries for ${BRAIINS_TAG}..."
           GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-amd64" .
-          
-          # Linux ARM64
-          echo "Building Linux ARM64..."
           GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-linux-arm64" .
-          
-          # Windows
-          echo "Building Windows AMD64..."
           GOOS=windows GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-windows-amd64.exe" .
-          
-          # macOS
-          echo "Building macOS Intel..."
           GOOS=darwin GOARCH=amd64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-amd64" .
-          
-          echo "Building macOS Apple Silicon..."
           GOOS=darwin GOARCH=arm64 go build -ldflags "-s -w" -o "evcc-${BRAIINS_TAG}-darwin-arm64" .
-          
-          echo "✅ All binaries built successfully"
+          echo "All binaries built successfully"
           ls -la evcc-${BRAIINS_TAG}-*
 
       - name: Create GitHub Release
@@ -440,50 +173,45 @@ jobs:
         run: |
           EVCC_TAG="${{ steps.evcc_version.outputs.evcc_tag }}"
           BRAIINS_TAG="${{ steps.braiins_version.outputs.braiins_tag }}"
-          
-          # Release Notes erstellen
-          cat > release_notes.md << EOF
+          cat > release_notes.md << 'RELEASE_NOTES'
           # evcc - Braiins Edition ${BRAIINS_TAG}
           
-          Enhanced version of [evcc ${EVCC_TAG}](https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG}) with Braiins mining pool integration.
+          Enhanced version of evcc ${EVCC_TAG} with Braiins mining pool integration.
           
-          ## 🆕 Braiins Edition Features
+          ## Braiins Edition Features
           - **Braiins Charger Integration**: Native support for Braiins mining pool charging
           - **Enhanced Mining Operations**: Optimized for cryptocurrency mining setups
           - **Automatic Upstream Sync**: Stays up-to-date with official evcc releases
           
-          ## 📦 Downloads
+          ## Downloads
           Choose the appropriate binary for your platform:
-          - **Linux AMD64**: \`evcc-${BRAIINS_TAG}-linux-amd64\`
-          - **Linux ARM64**: \`evcc-${BRAIINS_TAG}-linux-arm64\`
-          - **Windows**: \`evcc-${BRAIINS_TAG}-windows-amd64.exe\`
-          - **macOS Intel**: \`evcc-${BRAIINS_TAG}-darwin-amd64\`
-          - **macOS Apple Silicon**: \`evcc-${BRAIINS_TAG}-darwin-arm64\`
+          - **Linux AMD64**: evcc-${BRAIINS_TAG}-linux-amd64
+          - **Linux ARM64**: evcc-${BRAIINS_TAG}-linux-arm64
+          - **Windows**: evcc-${BRAIINS_TAG}-windows-amd64.exe
+          - **macOS Intel**: evcc-${BRAIINS_TAG}-darwin-amd64
+          - **macOS Apple Silicon**: evcc-${BRAIINS_TAG}-darwin-arm64
           
-          ## 📋 Base Version Changes
-          For complete changelog of the base evcc version, see: [evcc ${EVCC_TAG} Release Notes](https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG})
+          ## Base Version Changes
+          For complete changelog see: https://github.com/evcc-io/evcc/releases/tag/${EVCC_TAG}
           
-          ## 🔗 Links
+          ## Links
           - **Original evcc**: https://github.com/evcc-io/evcc
           - **Documentation**: https://docs.evcc.io
           - **Braiins Pool**: https://braiins.com/pool
-          EOF
-          
-          # GitHub Release erstellen
+          RELEASE_NOTES
+          sed -i "s/\${EVCC_TAG}/$EVCC_TAG/g" release_notes.md
+          sed -i "s/\${BRAIINS_TAG}/$BRAIINS_TAG/g" release_notes.md
           gh release create "${BRAIINS_TAG}" \
             --title "evcc-Braiins-Edition ${BRAIINS_TAG}" \
             --notes-file release_notes.md \
             --draft=false \
             --prerelease=false \
             evcc-${BRAIINS_TAG}-*
-          
-          echo "🎉 GitHub Release created: ${BRAIINS_TAG}"
+          echo "GitHub Release created: ${BRAIINS_TAG}"
 
       - name: Cleanup
         if: always()
         run: |
-          # Release branch löschen (lokal)
           git checkout master 2>/dev/null || git checkout main 2>/dev/null || true
           git branch -D "release/${{ steps.braiins_version.outputs.braiins_tag }}" 2>/dev/null || true
-          
-          echo "✅ Cleanup completed"
+          echo "Cleanup completed"
