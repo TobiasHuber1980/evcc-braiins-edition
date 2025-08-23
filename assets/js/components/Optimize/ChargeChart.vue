@@ -172,7 +172,7 @@ export default defineComponent({
 							display: true,
 							text: "Power (kW)",
 						},
-						stacked: true,
+						stacked: false,
 						grid: {
 							drawOnChartArea: true,
 							color: colors.border || "",
@@ -216,7 +216,7 @@ export default defineComponent({
 					borderWidth: 3,
 					yAxisID: "y",
 					type: "line" as const,
-					stack: "solar",
+					stack: false,
 				},
 			];
 		},
@@ -247,7 +247,7 @@ export default defineComponent({
 						borderWidth: 0,
 						yAxisID: "y",
 						type: "bar" as const,
-						stack: "charge",
+						stack: "power",
 					});
 				});
 			}
@@ -269,7 +269,7 @@ export default defineComponent({
 					borderWidth: 0,
 					yAxisID: "y",
 					type: "bar" as const,
-					stack: "charge",
+					stack: "power",
 				},
 			];
 		},
@@ -303,7 +303,7 @@ export default defineComponent({
 				pointHoverRadius: 6,
 				yAxisID: "y",
 				type: "line" as const,
-				stack: "grid",
+				stack: false,
 			});
 
 			return datasets;

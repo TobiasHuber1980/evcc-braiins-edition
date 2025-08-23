@@ -75,13 +75,19 @@ func (site *Site) optimizerUpdate(battery []measurement) error {
 		return nil
 	}
 
-	solar := currentRates(site.GetTariff(api.TariffUsageSolar))
-	grid := currentRates(site.GetTariff(api.TariffUsageGrid))
-	feedIn := currentRates(site.GetTariff(api.TariffUsageFeedIn))
+	solarTariff := site.GetTariff(api.TariffUsageSolar)
+	solarRates, err := solarTariff.Rates()
+	if err != nil {
+		return err
+	}
+
+	solar := currentSlots(solarTariff)
+	grid := currentSlots(site.GetTariff(api.TariffUsageGrid))
+	feedIn := currentSlots(site.GetTariff(api.TariffUsageFeedIn))
 
 	minLen := lo.Min([]int{len(grid), len(feedIn), len(solar)})
 	if minLen < 8 {
-		return fmt.Errorf("not enough slots for optimization: %d (grid=%d, feedIn=%d, solar=%d)", minLen, len(grid), len(feedIn), len(solar))
+		return fmt.Errorf("not enough slots for optimization: %d", minLen)
 	}
 
 	dt := timeSteps(minLen)
@@ -96,7 +102,7 @@ func (site *Site) optimizerUpdate(battery []measurement) error {
 
 	gt := site.homeProfile(minLen)
 
-	solarEnergy, err := ratesToEnergy(solar, firstSlotDuration)
+	solarEnergy, err := ratesToEnergy(solarRates, firstSlotDuration)
 	if err != nil {
 		return err
 	}
@@ -394,7 +400,7 @@ func endOfHour(ts time.Time) time.Time {
 	return ts.Truncate(time.Hour).Add(time.Hour)
 }
 
-func currentRates(tariff api.Tariff) api.Rates {
+func currentSlots(tariff api.Tariff) []api.Rate {
 	if tariff == nil {
 		return nil
 	}
@@ -404,10 +410,9 @@ func currentRates(tariff api.Tariff) api.Rates {
 		return nil
 	}
 
-	// filter past slots
-	now := time.Now()
+	now := now.BeginningOfHour()
 	return lo.Filter(rates, func(slot api.Rate, _ int) bool {
-		return slot.End.After(now)
+		return !slot.End.Before(now) // filter past slots
 	})
 }
 
